@@ -1,0 +1,29 @@
+[project]
+name = "csv2ledger"
+version = "0.1.0"
+description = "Interactive bank-CSV to ledger importer that learns payee and account assignments"
+readme = "README.md"
+authors = [
+    { name = "Peter Ross", email = "peter.ross@dataprocessors.com.au" }
+]
+requires-python = ">=3.14"
+dependencies = [
+    "numpy>=2.1",
+    "scikit-learn>=1.6",
+    "scipy>=1.14",
+]
+
+[project.scripts]
+csv2ledger = "csv2ledger.cli:main"
+
+[dependency-groups]
+dev = [
+    "pytest>=8.3",
+]
+
+[build-system]
+requires = ["uv_build>=0.11.21,<0.12.0"]
+build-backend = "uv_build"
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
