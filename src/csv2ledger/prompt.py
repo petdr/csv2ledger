@@ -65,10 +65,20 @@ class _Completer:
 
     def complete(self, text: str, state: int) -> str | None:
         if state == 0:
-            lowered = text.lower()
-            self._matches = sorted(o for o in self.options if o.lower().startswith(lowered))
-            if not self._matches:
-                self._matches = sorted(o for o in self.options if lowered in o.lower())
+            if text.islower():
+                # Typed with no capitals: match case-insensitively, as usual.
+                lowered = text.lower()
+                self._matches = sorted(o for o in self.options if o.lower().startswith(lowered))
+                if not self._matches:
+                    self._matches = sorted(o for o in self.options if lowered in o.lower())
+            else:
+                # Typed with a capital somewhere: honour the case as typed. Otherwise
+                # a query like "EVER" pulls in both "EVERYDAY TO ..." and "Everyday
+                # Hero Events", and readline inserts their common prefix -- a single
+                # "E" -- silently discarding the rest of what was typed.
+                self._matches = sorted(o for o in self.options if o.startswith(text))
+                if not self._matches:
+                    self._matches = sorted(o for o in self.options if text in o)
         return self._matches[state] if state < len(self._matches) else None
 
 
