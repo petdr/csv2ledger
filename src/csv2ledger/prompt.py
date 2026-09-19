@@ -1,12 +1,19 @@
 """The interactive layer: show a transaction, confirm or correct the suggestion.
 
 The design target is a run of Enter presses, so everything here is arranged around making
-Enter mean "yes". The suggestion is pre-inserted into the readline buffer rather than
-printed as a default in brackets: pressing Enter accepts it, and editing it is ordinary
-line editing rather than retyping the whole payee.
+Enter mean "yes". Under GNU readline the suggestion is pre-inserted into the line buffer
+rather than printed as a default in brackets: pressing Enter accepts it, and editing it is
+ordinary line editing rather than retyping the whole payee.
+
+That trick depends on ``readline.set_startup_hook``, which libedit's readline
+compatibility shim accepts without error but never actually calls -- so under libedit
+(``readline.backend == "editline"``, which is what every ``uv``-managed Python uses; see
+``_read``) the suggestion falls back to being printed in brackets instead. Enter still
+accepts it either way, but editing it under libedit means retyping it rather than
+correcting a few characters.
 
 Colon-prefixed commands (``:s``, ``:q``, ``:2``) are used instead of bare letters because
-the buffer already contains a payee, and a bare ``s`` is a plausible payee in its own
+the buffer may already contain a payee, and a bare ``s`` is a plausible payee in its own
 right.
 """
 
@@ -275,14 +282,22 @@ class Prompter:
         # Only pre-insert into a real terminal: with piped input there is no line buffer
         # to insert into, and an empty line is read as "accept" anyway.
         rl = readline if self.interactive else None
-        if rl is not None:
+        # Under libedit, set_startup_hook is accepted but never actually invoked, so
+        # insert_text would silently do nothing -- the suggestion would be invisible
+        # rather than pre-filled, exactly the case that led to this fallback. Enter still
+        # accepts the default either way, via the empty-input branch in _field.
+        prefill_works = rl is not None and rl.backend != "editline"
+        if prefill_works:
             rl.set_startup_hook(lambda: rl.insert_text(default))
+            prompt = f"{label:<8}> "
+        else:
+            prompt = f"{label:<8}[{default}] > " if default else f"{label:<8}> "
         try:
             if self._stdout_is_tty:
-                return input(f"{label:<8}> ")
+                return input(prompt)
             # Entries are going to stdout, so the prompt must not: input() writes its
             # prompt there, which would land in the middle of the ledger output.
-            print(f"{label:<8}> ", file=self.out, end="", flush=True)
+            print(prompt, file=self.out, end="", flush=True)
             return input()
         except EOFError:
             # Piped input that has run out, or Ctrl-D. Accept the remaining suggestions
@@ -291,5 +306,5 @@ class Prompter:
             print("\n  (end of input -- accepting suggestions for the rest)", file=self.out)
             return None
         finally:
-            if rl is not None:
+            if prefill_works:
                 rl.set_startup_hook()
