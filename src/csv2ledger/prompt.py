@@ -96,7 +96,13 @@ class Prompter:
         if readline is not None:
             readline.set_completer(self._completer.complete)
             readline.set_completer_delims("")
-            readline.parse_and_bind("tab: complete")
+            # libedit and GNU readline do not share a binding syntax, and the loser
+            # silently ignores the other's, which looks exactly like completion being
+            # switched off. uv's CPython builds link libedit, so this is the common case.
+            if readline.backend == "editline":
+                readline.parse_and_bind("bind ^I rl_complete")
+            else:
+                readline.parse_and_bind("tab: complete")
 
     # -- one transaction ------------------------------------------------------------
 
